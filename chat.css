@@ -211,15 +211,22 @@ message-area
     height: 90vh;
     overflow: hidden;
     min-height: calc(100% - 1rem);
+
+    /* DESKTOP: layout en columnas */
+    display: flex;
+    flex-direction: row;
 }
+
 
 .chatlist {
     outline: 0;
     height: 100%;
     overflow: hidden;
-    width: 300px;
-    float: left;
     padding: 15px;
+
+    flex: 0 0 300px;   /* columna fija */
+    max-width: 300px;
+    border-right: 1px solid #eee;
 }
 
 .chat-area .modal-content {
@@ -234,10 +241,18 @@ message-area
 }
 
 .chatbox {
-    width: auto;
     overflow: hidden;
     height: 100%;
     border-left: 1px solid #ccc;
+
+    flex: 1 1 auto;
+    position: relative;
+    background: #fff;
+
+    /* sin overlay en desktop */
+    transform: none;
+    transition: transform 0.35s ease-in-out;
+    z-index: 1;
 }
 
 .chatbox .modal-dialog,
@@ -352,18 +367,35 @@ a.add img {
     text-decoration: none;
 }
 
+.chat-list .flex-shrink-0 {
+    position: relative;
+    width: 45px;
+    height: 45px;
+    flex-shrink: 0;
+}
+
+.chat-list .flex-shrink-0 img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    border-radius: 50%;
+    display: block;
+}
+
 .chat-list .active {
     display: block;
     content: '';
     clear: both;
     position: absolute;
-    bottom: 3px;
-    left: 34px;
+    bottom: 0;
+    right: 0;
     height: 12px;
     width: 12px;
     background: #00DB75;
     border-radius: 50%;
     border: 2px solid #fff;
+    z-index: 2;
 }
 
 .chat-empty{
@@ -467,10 +499,13 @@ a.add img {
     margin: 15px 0;
 }
 
+/* Mensajes del POS/Bot (izquierda) */
 .msg-body ul li.sender {
     display: block;
     width: 100%;
     position: relative;
+    margin-bottom: 15px;
+    animation: slideInLeft 0.3s ease;
 }
 
 .msg-body ul li.sender:before {
@@ -491,17 +526,20 @@ a.add img {
 }
 
 .msg-body ul li.sender p {
-    color: #000;
+    color: #2c3e50;
     font-size: 14px;
-    line-height: 1.5;
+    line-height: 1.6;
     font-weight: 400;
-    padding: 15px;
+    padding: 12px 16px;
     background: #f5f5f5;
     display: inline-block;
     border-bottom-left-radius: 10px;
     border-top-right-radius: 10px;
     border-bottom-right-radius: 10px;
     margin-bottom: 0;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    max-width: 75%;
+    word-wrap: break-word;
 }
 
 .msg-body ul li.sender p b {
@@ -512,11 +550,14 @@ a.add img {
     font-weight: 500;
 }
 
+/* Mensajes del usuario (derecha) */
 .msg-body ul li.repaly {
     display: block;
     width: 100%;
     text-align: right;
     position: relative;
+    margin-bottom: 15px;
+    animation: slideInRight 0.3s ease;
 }
 
 .msg-body ul li.repaly:before {
@@ -530,7 +571,7 @@ a.add img {
     height: 0;
     border-style: solid;
     border-width: 0 12px 15px 12px;
-    border-color: transparent transparent #4b7bec transparent;
+    border-color: transparent transparent #3867d6 transparent;
     -webkit-transform: rotate(37deg);
     -ms-transform: rotate(37deg);
     transform: rotate(37deg);
@@ -539,23 +580,49 @@ a.add img {
 .msg-body ul li.repaly p {
     color: #fff;
     font-size: 14px;
-    line-height: 1.5;
+    line-height: 1.6;
     font-weight: 400;
-    padding: 15px;
-    background: #4b7bec;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #3867d6 0%, #4b7bec 100%);
     display: inline-block;
     border-top-left-radius: 10px;
     border-top-right-radius: 10px;
     border-bottom-left-radius: 10px;
     margin-bottom: 0;
+    box-shadow: 0 2px 5px rgba(56, 103, 214, 0.3);
+    max-width: 75%;
+    word-wrap: break-word;
 }
 
 .msg-body ul li.repaly p b {
     display: block;
-    color: #061061;
+    color: #e8f0ff;
     font-size: 14px;
     line-height: 1.5;
     font-weight: 500;
+}
+
+/* Animaciones de entrada */
+@keyframes slideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
 }
 
 .msg-body ul li.repaly:after {
@@ -566,14 +633,31 @@ a.add img {
 
 .time {
     display: block;
-    color: #000;
-    font-size: 12px;
+    color: #6c757d;
+    font-size: 11px;
     line-height: 1.5;
     font-weight: 400;
+    margin-top: 4px;
+    opacity: 0.8;
 }
 
 li.repaly .time {
     margin-right: 20px;
+    color: #6c757d;
+}
+
+li.sender .time {
+    color: #6c757d;
+}
+
+/* Mensaje de carga (typing indicator) */
+.msg-body ul li.loading-message {
+    opacity: 0.7;
+}
+
+.msg-body ul li.loading-message p {
+    padding: 10px 20px;
+    background: #e9ecef;
 }
 
 .divider {
@@ -613,15 +697,46 @@ li.repaly .time {
 }
 
 .send-box form {
+    margin-bottom: 0;
+}
+
+.send-box .input-group {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    margin-bottom: 15px;
+    gap: 8px;
+}
+
+.send-box .btn-attach {
+    border: 1px solid #ccc;
+    background: #f8f9fa;
+    padding: 0.375rem 0.75rem;
+    color: #495057;
+    border-radius: 0.25rem;
+    font-size: 18px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 42px;
+    height: 38px;
+}
+
+.send-box .btn-attach:hover {
+    background: #e9ecef;
+    color: #3867d6;
+    border-color: #3867d6;
+}
+
+.send-box .btn-attach:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    pointer-events: none;
 }
 
 .send-box .form-control {
     display: block;
-    width: 85%;
+    flex: 1;
     padding: 0.375rem 0.75rem;
     font-size: 14px;
     font-weight: 400;
@@ -637,20 +752,27 @@ li.repaly .time {
     transition: border-color .15s ease-in-out, box-shadow .15s ease-in-out;
 }
 
-.send-box button {
+.send-box .btn-send {
     border: none;
     background: #3867d6;
-    padding: 0.375rem 5px;
+    padding: 0.375rem 1rem;
     color: #fff;
     border-radius: 0.25rem;
-    font-size: 14px;
+    font-size: 18px;
     font-weight: 400;
-    width: 24%;
-    margin-left: 1%;
+    min-width: 42px;
+    height: 38px;
+    cursor: pointer;
+    transition: background 0.2s ease;
 }
 
-.send-box button i {
-    margin-right: 5px;
+.send-box .btn-send:hover {
+    background: #2f54c0;
+}
+
+.send-box .btn-send:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .send-btns .button-wrapper {
@@ -759,61 +881,103 @@ button:focus {
 }
 
 
-
 @media (max-width: 767px) {
-    .chat-icon {
+
+    /* El contenedor deja de ser flex, usamos overlay */
+    .chat-area {
+        position: relative;
         display: block;
-        margin-right: 5px;
+        height: 90vh;
     }
+
+    /* LISTA: ocupa toda la pantalla */
     .chatlist {
         width: 100%;
+        max-width: 100%;
+        height: 100%;
+        padding: 15px;
+        overflow-y: auto;
+        position: relative;
+        z-index: 1;
+        border-right: none;
+        display: block !important;
+        visibility: visible !important;
     }
+
+    /* CHAT: se monta encima tipo WhatsApp */
     .chatbox {
         width: 100%;
+        height: 100%;
         position: absolute;
-        left: 1000px;
-        right: 0;
+        top: 0;
+        left: 0;
         background: #fff;
-        transition: all 0.5s ease;
+
+        transform: translateX(100%);          /* escondido por defecto */
+        transition: transform 0.35s ease-in-out;
+        z-index: 10;
         border-left: none;
+        border-top: none;
     }
-    .showbox {
-        left: 0 !important;
-        transition: all 0.5s ease;
+
+    /* cuando añadimos .showbox al div.chatbox, se muestra */
+    .chatbox.showbox {
+        transform: translateX(0);
     }
-    .msg-head h3 {
-        font-size: 14px;
+
+    /* ahora sí: mostrar flechita en móvil */
+    .chat-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 8px;
+        cursor: pointer;
     }
-    .msg-head p {
-        font-size: 12px;
-    }
-    .msg-head .flex-shrink-0 img {
-        height: 30px;
-    }
-    .send-box button {
-        width: 28%;
-    }
-    .send-box .form-control {
-        width: 70%;
-    }
-    .chat-list h3 {
-        font-size: 14px;
-    }
-    .chat-list p {
-        font-size: 12px;
-    }
-    .msg-body ul li.sender p {
-        font-size: 13px;
-        padding: 8px;
-        border-bottom-left-radius: 6px;
-        border-top-right-radius: 6px;
-        border-bottom-right-radius: 6px;
-    }
-    .msg-body ul li.repaly p {
-        font-size: 13px;
-        padding: 8px;
-        border-top-left-radius: 6px;
-        border-top-right-radius: 6px;
-        border-bottom-left-radius: 6px;
-    }
+
+    /* Tamaños reducidos */
+    .msg-head h3 { font-size: 14px; }
+    .msg-head p { font-size: 12px; }
+    .msg-head .flex-shrink-0 img { height: 30px; }
+    .send-box button { width: 28%; }
+    .send-box .form-control { width: 70%; }
+    .chat-list h3 { font-size: 14px; }
+    .chat-list p { font-size: 12px; }
+    .msg-body ul li.sender p,
+    .msg-body ul li.repaly p { font-size: 13px; padding: 8px; }
+    .msg-body ul li.sender p { border-radius: 6px; }
+    .msg-body ul li.repaly p { border-radius: 6px; }
+}
+
+
+/* ESTILO PARA MODO READ-ONLY (Archivado) */
+.send-box.read-only,
+.send-box.read-only * {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.send-box.read-only .form-control,
+.send-box.read-only button,
+.send-box.read-only input[type="file"] {
+    background-color: #f8f9fa !important;
+    pointer-events: none;
+}
+
+.send-box .button-wrapper .label {
+    display: flex !important;
+    align-items: center;
+    gap: 5px;
+}
+
+.upload-box {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 2;
+}
+
+.send-box.read-only .upload-box {
+    cursor: not-allowed;
+    pointer-events: none;
 }
