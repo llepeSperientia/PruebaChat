@@ -494,31 +494,56 @@ $(function () {
     // =========================
     /**
      * Añade un mensaje al chat con animación
-     * @param {string} type - 'sender' (POS/Bot responde) o 'repaly' (usuario envía)
-     * @param {string} text - Texto del mensaje
+     * @param {string} type - 'sender' (POS/Bot responde), 'repaly' (usuario envía), o 'error' (mensaje de error)
+     * @param {string} text - Texto/HTML del mensaje
      * @param {string} time - Hora del mensaje
      * @param {boolean} isLoading - Si es un mensaje de carga temporal
      */
     function appendMessage(type, text, time, isLoading) {
-        var liClass = type === 'sender' ? 'sender' : 'repaly';
-        var loadingClass = isLoading ? ' loading-message' : '';
+        var $li;
         
-        var $li = $('<li class="' + liClass + loadingClass + '"><p></p><span class="time"></span></li>');
-        $li.find('p').html(text || ''); // Usar html() para permitir emojis y formato
-        $li.find('.time').text(time || '');
+        // Mensaje de error especial
+        if (type === 'error') {
+            $li = $('<li class="message-error">' +
+                '<div class="error-container">' +
+                    '<div class="error-icon">' +
+                        '<i class="fa fa-exclamation-triangle" aria-hidden="true"></i>' +
+                    '</div>' +
+                    '<div class="error-content"></div>' +
+                    '<span class="error-time"></span>' +
+                '</div>' +
+            '</li>');
+            
+            $li.find('.error-content').html(text || 'Error desconocido');
+            $li.find('.error-time').text(time || '');
+        }
+        // Mensajes normales (sender o reply)
+        else {
+            var liClass = type === 'sender' ? 'sender' : 'repaly';
+            var loadingClass = isLoading ? ' loading-message' : '';
+            
+            $li = $('<li class="' + liClass + loadingClass + '">' +
+                '<div class="message-content"></div>' +
+                '<span class="time"></span>' +
+            '</li>');
+            
+            $li.find('.message-content').html(text || '');
+            $li.find('.time').text(time || '');
+        }
         
-        // Agregar clase de entrada con animación
-        $li.css('opacity', '0').css('transform', 'translateY(10px)');
+        // Agregar animación de entrada
+        $li.css('opacity', '0').css('transform', type === 'error' ? 'scale(0.95)' : 'translateY(10px)');
 
-        var $ul = $('.chatbox .msg-body ul');
+        // Usar selector de hijo directo para evitar conflictos con <ul> dentro del contenido HTML
+        var $ul = $('.chatbox .msg-body > ul');
         if ($ul.length) {
             $ul.append($li);
             
             // Animar entrada
             setTimeout(function() {
-                $li.css('transition', 'all 0.3s ease');
+                $li.css('transition', type === 'error' ? 'all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55)' : 'all 0.3s ease');
                 $li.css('opacity', '1');
-                $li.css('transform', 'translateY(0)');
+                $li.css('transform', type === 'error' ? 'scale(1)' : 'translateY(0)');
             }, 10);
             
             var $msgBody = $('.chatbox .msg-body');
@@ -532,7 +557,8 @@ $(function () {
      * Remueve mensaje de carga temporal
      */
     function removeLoadingMessage() {
-        $('.chatbox .msg-body ul .loading-message').fadeOut(200, function() {
+        // Usar selector de hijo directo para evitar conflictos con <ul> dentro del contenido HTML
+        $('.chatbox .msg-body > ul .loading-message').fadeOut(200, function() {
             $(this).remove();
         });
     }
@@ -800,6 +826,7 @@ $(function () {
                         removeLoadingMessage();
                         
                         // Determinar el mensaje de error más apropiado
+                        var errorTitle = 'Error al enviar mensaje';
                         var errorMessage = 'Error desconocido';
                         var errorDetails = '';
                         
@@ -807,38 +834,36 @@ $(function () {
                             errorMessage = err.message;
                             
                             // Personalizar mensajes según el tipo de error
-                            if (err.message.includes('JSON')) {
-                                errorDetails = 'El webhook no está respondiendo en el formato correcto. Verifica la configuración en Make.';
-                            } else if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+                            if (err.message.includes('JSON') || err.message.includes('formato')) {
+                                errorTitle = 'Respuesta inválida';
+                                errorDetails = 'El servidor no respondió en el formato esperado. Verifica la configuración del webhook.';
+                            } else if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.message.includes('conexión')) {
+                                errorTitle = 'Sin conexión';
                                 errorDetails = 'No se pudo conectar con el servidor. Verifica tu conexión a internet.';
-                            } else if (err.message.includes('Token')) {
-                                errorDetails = 'Problema con la autenticación. Recarga la página desde la aplicación.';
+                            } else if (err.message.includes('Token') || err.message.includes('autenticación')) {
+                                errorTitle = 'Error de autenticación';
+                                errorDetails = 'Problema con el token. Recarga la página desde la aplicación.';
                             } else if (err.message.includes('POS')) {
+                                errorTitle = 'POS no encontrado';
                                 errorDetails = 'No se encontró el ID del POS. Selecciona nuevamente la conversación.';
+                            } else if (err.message.includes('servidor')) {
+                                errorTitle = 'Error del servidor';
+                                errorDetails = 'El servidor encontró un problema al procesar tu mensaje.';
                             }
                         }
                         
-                        // Mostrar error en SweetAlert
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Error al enviar mensaje',
-                            html: '<p><strong>' + errorMessage + '</strong></p>' + 
-                                  (errorDetails ? '<p style="font-size: 14px; color: #6c757d; margin-top: 10px;">' + errorDetails + '</p>' : ''),
-                            confirmButtonText: 'Aceptar',
-                            footer: '<small>Si el problema persiste, contacta al administrador</small>'
-                        });
+                        // Construir HTML del error
+                        var errorHTML = '<div class="error-title">' + errorTitle + '</div>' +
+                                       '<div class="error-message">' + errorMessage + '</div>';
                         
-                        // Mensaje simplificado en el chat
-                        var chatErrorMsg = '❌ Error: ';
-                        if (err.message.includes('JSON') || err.message.includes('formato')) {
-                            chatErrorMsg += 'Respuesta inválida del servidor';
-                        } else if (err.message.includes('fetch') || err.message.includes('Network')) {
-                            chatErrorMsg += 'Sin conexión al servidor';
-                        } else {
-                            chatErrorMsg += errorMessage.substring(0, 80);
+                        if (errorDetails) {
+                            errorHTML += '<div class="error-details">' + errorDetails + '</div>';
                         }
                         
-                        appendMessage('sender', chatErrorMsg, formatTime());
+                        errorHTML += '<div class="error-footer">Si el problema persiste, contacta al administrador</div>';
+                        
+                        // Mostrar error en el chat con el nuevo sistema
+                        appendMessage('error', errorHTML, formatTime());
                     })
                     .finally(function() {
                         // Rehabilitar input

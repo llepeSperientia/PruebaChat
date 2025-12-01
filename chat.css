@@ -499,7 +499,9 @@ a.add img {
     margin: 15px 0;
 }
 
-/* Mensajes del POS/Bot (izquierda) */
+/* ========================================
+   MENSAJES DEL POS/BOT (IZQUIERDA)
+======================================== */
 .msg-body ul li.sender {
     display: block;
     width: 100%;
@@ -525,7 +527,7 @@ a.add img {
     transform: rotate(-37deg);
 }
 
-.msg-body ul li.sender p {
+.msg-body ul li.sender .message-content {
     color: #2c3e50;
     font-size: 14px;
     line-height: 1.6;
@@ -542,15 +544,87 @@ a.add img {
     word-wrap: break-word;
 }
 
-.msg-body ul li.sender p b {
-    display: block;
-    color: #180660;
-    font-size: 14px;
-    line-height: 1.5;
-    font-weight: 500;
+/* Estilos para el contenido HTML dentro del mensaje */
+.msg-body ul li.sender .message-content h1,
+.msg-body ul li.sender .message-content h2,
+.msg-body ul li.sender .message-content h3,
+.msg-body ul li.sender .message-content h4,
+.msg-body ul li.sender .message-content h5,
+.msg-body ul li.sender .message-content h6 {
+    color: #1a1a1a;
+    font-weight: 600;
+    margin: 8px 0 6px 0;
+    line-height: 1.3;
 }
 
-/* Mensajes del usuario (derecha) */
+.msg-body ul li.sender .message-content h1 { font-size: 20px; }
+.msg-body ul li.sender .message-content h2 { font-size: 18px; }
+.msg-body ul li.sender .message-content h3 { font-size: 16px; }
+.msg-body ul li.sender .message-content h4 { font-size: 15px; }
+.msg-body ul li.sender .message-content h5 { font-size: 14px; }
+.msg-body ul li.sender .message-content h6 { font-size: 13px; }
+
+.msg-body ul li.sender .message-content p {
+    margin: 6px 0;
+    color: #2c3e50;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.msg-body ul li.sender .message-content p:first-child {
+    margin-top: 0;
+}
+
+.msg-body ul li.sender .message-content p:last-child {
+    margin-bottom: 0;
+}
+
+.msg-body ul li.sender .message-content ul,
+.msg-body ul li.sender .message-content ol {
+    margin: 8px 0;
+    padding-left: 20px;
+}
+
+.msg-body ul li.sender .message-content li {
+    margin: 4px 0;
+    color: #2c3e50;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.msg-body ul li.sender .message-content hr {
+    margin: 12px 0;
+    border: none;
+    border-top: 1px solid #d0d0d0;
+}
+
+.msg-body ul li.sender .message-content strong,
+.msg-body ul li.sender .message-content b {
+    font-weight: 600;
+    color: #1a1a1a;
+}
+
+.msg-body ul li.sender .message-content em,
+.msg-body ul li.sender .message-content i {
+    font-style: italic;
+}
+
+.msg-body ul li.sender .message-content span {
+    color: inherit;
+}
+
+.msg-body ul li.sender .message-content a {
+    color: #3867d6;
+    text-decoration: underline;
+}
+
+.msg-body ul li.sender .message-content a:hover {
+    color: #2f54c0;
+}
+
+/* ========================================
+   MENSAJES DEL USUARIO (DERECHA)
+======================================== */
 .msg-body ul li.repaly {
     display: block;
     width: 100%;
@@ -577,7 +651,7 @@ a.add img {
     transform: rotate(37deg);
 }
 
-.msg-body ul li.repaly p {
+.msg-body ul li.repaly .message-content {
     color: #fff;
     font-size: 14px;
     line-height: 1.6;
@@ -594,12 +668,135 @@ a.add img {
     word-wrap: break-word;
 }
 
-.msg-body ul li.repaly p b {
-    display: block;
+.msg-body ul li.repaly .message-content p {
+    margin: 6px 0;
+    color: #fff;
+}
+
+.msg-body ul li.repaly .message-content p:first-child {
+    margin-top: 0;
+}
+
+.msg-body ul li.repaly .message-content p:last-child {
+    margin-bottom: 0;
+}
+
+.msg-body ul li.repaly .message-content strong,
+.msg-body ul li.repaly .message-content b {
+    font-weight: 600;
     color: #e8f0ff;
+}
+
+/* ========================================
+   MENSAJES DE ERROR (ROJO - ANCHO COMPLETO)
+======================================== */
+.msg-body ul li.message-error {
+    display: block;
+    width: 100%;
+    margin: 20px 0;
+    animation: errorShake 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+.msg-body ul li.message-error .error-container {
+    background: linear-gradient(135deg, rgba(220, 53, 69, 0.95) 0%, rgba(200, 35, 51, 0.95) 100%);
+    border: 2px solid rgba(220, 53, 69, 0.3);
+    border-radius: 8px;
+    padding: 16px 20px;
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.25);
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    position: relative;
+    overflow: hidden;
+}
+
+.msg-body ul li.message-error .error-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.4);
+    animation: errorPulse 2s ease-in-out infinite;
+}
+
+.msg-body ul li.message-error .error-icon {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: #fff;
+    animation: errorIconBounce 0.6s ease;
+}
+
+.msg-body ul li.message-error .error-content {
+    flex: 1;
+    color: #fff;
+}
+
+.msg-body ul li.message-error .error-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.msg-body ul li.message-error .error-message {
     font-size: 14px;
-    line-height: 1.5;
     font-weight: 500;
+    color: rgba(255, 255, 255, 0.95);
+    margin-bottom: 6px;
+    line-height: 1.5;
+}
+
+.msg-body ul li.message-error .error-details {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.4;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.msg-body ul li.message-error .error-footer {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.7);
+    margin-top: 10px;
+    font-style: italic;
+}
+
+.msg-body ul li.message-error .error-time {
+    display: block;
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 11px;
+    margin-top: 8px;
+    text-align: right;
+}
+
+/* Animaciones para errores */
+@keyframes errorShake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+@keyframes errorPulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+}
+
+@keyframes errorIconBounce {
+    0% { transform: scale(0); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
 }
 
 /* Animaciones de entrada */
@@ -942,10 +1139,37 @@ button:focus {
     .send-box .form-control { width: 70%; }
     .chat-list h3 { font-size: 14px; }
     .chat-list p { font-size: 12px; }
-    .msg-body ul li.sender p,
-    .msg-body ul li.repaly p { font-size: 13px; padding: 8px; }
-    .msg-body ul li.sender p { border-radius: 6px; }
-    .msg-body ul li.repaly p { border-radius: 6px; }
+    .msg-body ul li.sender .message-content,
+    .msg-body ul li.repaly .message-content { 
+        font-size: 13px; 
+        padding: 8px 12px;
+        max-width: 85%;
+    }
+    .msg-body ul li.sender .message-content { border-radius: 8px; }
+    .msg-body ul li.repaly .message-content { border-radius: 8px; }
+    
+    .msg-body ul li.message-error .error-container {
+        padding: 12px 16px;
+        gap: 10px;
+    }
+    
+    .msg-body ul li.message-error .error-icon {
+        width: 24px;
+        height: 24px;
+        font-size: 14px;
+    }
+    
+    .msg-body ul li.message-error .error-title {
+        font-size: 14px;
+    }
+    
+    .msg-body ul li.message-error .error-message {
+        font-size: 13px;
+    }
+    
+    .msg-body ul li.message-error .error-details {
+        font-size: 12px;
+    }
 }
 
 
