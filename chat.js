@@ -6,6 +6,7 @@ $(function () {
     // ocultar en backend en versión producción
     var WEBHOOK_URL = 'https://hook.us1.make.com/fld3vofootr5aimg6jy0r5m1ob8ed352';
     var POS_WEBHOOK_URL = 'https://hook.us1.make.com/udoxfuc53ng3axncfwssqpvc3kbmdr09';
+    var PROJECT_WEBHOOK_URL = 'https://hook.us1.make.com/0em229nad8e86arsx3wzede7fq3mpc14';
     
     // =========================
     // LIBRERÍA RECOMENDADA PARA PREVIEW DE ARCHIVOS
@@ -29,6 +30,9 @@ $(function () {
     var CACHE_KEY_TIMESTAMP = 'pos_cache_timestamp';
     var CACHE_KEY_TOKEN_EMPRESA = 'token_empresa';
     var CACHE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 horas
+
+    // Variable global para conversationId (se pierde al refrescar)
+    var currentConversationId = '';
 
     // =========================
     // UTILIDADES
@@ -423,9 +427,10 @@ $(function () {
                                     '<i class="fa fa-ellipsis-v" aria-hidden="true"></i>' +
                                 '</a>' +
                                 '<ul class="dropdown-menu">' +
+                                    '<li><a class="dropdown-item save-as-project" href="#"><i class="fa fa-floppy-o" aria-hidden="true"></i> Guardar como proyecto...</a></li>' +
+                                    '<li><hr class="dropdown-divider"></li>' +
                                     '<li><a class="dropdown-item" href="#">Action</a></li>' +
                                     '<li><a class="dropdown-item" href="#">Another action</a></li>' +
-                                    '<li><hr class="dropdown-divider"></li>' +
                                     '<li><a class="dropdown-item" href="#">Something else here</a></li>' +
                                 '</ul>' +
                             '</li>' +
@@ -502,6 +507,9 @@ $(function () {
     function appendMessage(type, text, time, isLoading) {
         var $li;
         
+        // Generar timestamp completo con milisegundos
+        var fullTimestamp = new Date().toISOString();
+        
         // Mensaje de error especial
         if (type === 'error') {
             $li = $('<li class="message-error">' +
@@ -524,11 +532,11 @@ $(function () {
             
             $li = $('<li class="' + liClass + loadingClass + '">' +
                 '<div class="message-content"></div>' +
-                '<span class="time"></span>' +
+                '<span class="time" data-timestamp=""></span>' +
             '</li>');
             
             $li.find('.message-content').html(text || '');
-            $li.find('.time').text(time || '');
+            $li.find('.time').text(time || '').attr('data-timestamp', fullTimestamp);
         }
         
         // Agregar animación de entrada
@@ -565,6 +573,114 @@ $(function () {
 
 
     // =========================
+    // GUARDAR COMO PROYECTO
+    // =========================
+    /**
+     * Guarda la conversación actual como proyecto
+     * @param {string} projectName - Nombre del proyecto
+     * @param {string} posId - ID del POS
+     * @param {Array} messages - Array de mensajes {type, text, time}
+     * @returns {Promise} - Promesa con la respuesta del servidor
+     */
+    function saveAsProject(projectName, posId, messages) {
+        return new Promise(function(resolve, reject) {
+            var tokenEmpresa = getTokenEmpresa();
+            
+            if (!tokenEmpresa) {
+                reject(new Error('Token de empresa no disponible'));
+                return;
+            }
+            
+            if (!posId) {
+                reject(new Error('ID del POS no disponible'));
+                return;
+            }
+            
+            // Convertir mensajes al formato requerido
+            var formattedMessages = messages.map(function(msg) {
+                // Determinar si es cliente (repaly) o POS (sender)
+                var isClient = msg.type === 'repaly';
+                
+                // Usar timestamp exacto si está disponible, sino usar ISO actual
+                var fecha = msg.timestamp || new Date().toISOString();
+                
+                return {
+                    Contenido: msg.html,
+                    EsCliente: isClient,
+                    Fecha: fecha
+                };
+            });
+            
+            // Construir el payload
+            var payload = {
+                IdPOS: posId,
+                IdEmpresa: tokenEmpresa,
+                ProyectoNombre: projectName,
+                Mensajes: formattedMessages
+            };
+            
+            console.log('Enviando proyecto:', payload);
+            
+            // Enviar petición
+            fetch(PROJECT_WEBHOOK_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(function(response) {
+                console.log('Status de respuesta proyecto:', response.status, response.statusText);
+                
+                // Verificar errores HTTP
+                if (response.status >= 400) {
+                    throw new Error('Error del servidor: ' + response.status + ' - ' + response.statusText);
+                }
+                
+                return response.text().then(function(text) {
+                    console.log('Respuesta del servidor proyecto (raw):', text);
+                    
+                    if (!text || text.trim() === '') {
+                        throw new Error('El servidor respondió con una respuesta vacía');
+                    }
+                    
+                    try {
+                        var data = JSON.parse(text);
+                        return data;
+                    } catch (parseError) {
+                        console.error('Error al parsear JSON:', parseError);
+                        
+                        if (text.trim().startsWith('<')) {
+                            throw new Error('El servidor respondió con HTML. Verifica la configuración del webhook.');
+                        }
+                        
+                        throw new Error('Respuesta no válida del servidor');
+                    }
+                });
+            })
+            .then(function(data) {
+                console.log('Datos parseados proyecto:', data);
+                
+                // Verificar si hay un error en la respuesta
+                if (data && data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Verificar que tenga los campos esperados
+                if (!data || !data.ProyectoID) {
+                    throw new Error('Respuesta del servidor no contiene ProyectoID');
+                }
+                
+                resolve(data);
+            })
+            .catch(function(error) {
+                console.error('Error completo en saveAsProject:', error);
+                reject(error);
+            });
+        });
+    }
+
+    // =========================
     // LLAMAR WEBHOOK DE MAKE
     // =========================
     /**
@@ -594,6 +710,7 @@ $(function () {
             formData.append('message', userText);
             formData.append('posId', posId);
             formData.append('idEmpresa', tokenEmpresa);
+            formData.append('conversationId', currentConversationId || '');
             
             // Agregar archivos si existen
             if (files && files.length > 0) {
@@ -812,6 +929,12 @@ $(function () {
                         // Remover mensaje de carga
                         removeLoadingMessage();
                         
+                        // Actualizar conversationId si viene en la respuesta
+                        if (data.conversationId) {
+                            currentConversationId = data.conversationId;
+                            console.log('ConversationId actualizado:', currentConversationId);
+                        }
+                        
                         var replyText = data.message || 'Respuesta recibida';
                         var timeBot = formatTime();
                         
@@ -902,6 +1025,10 @@ $(function () {
         var desc = getPreferredText($a.find('p'));
         var isArchived = $a.closest('.tab-pane').is('#Archivado');
         
+        // Limpiar conversationId al abrir nueva conversación
+        currentConversationId = '';
+        console.log('Nueva conversación iniciada - conversationId limpiado');
+        
         // Obtener ID del POS (si existe)
         var posId = $a.attr('data-pos-id') || '';
         
@@ -925,9 +1052,157 @@ $(function () {
 
 
     // =========================
+    // GUARDAR COMO PROYECTO (EVENTO)
+    // =========================
+    $('.chatbox').on('click', '.save-as-project', function (e) {
+        e.preventDefault();
+        
+        // Obtener POS ID actual
+        var posId = $('.current-pos-id').val();
+        
+        if (!posId) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'No se ha seleccionado un POS válido',
+                confirmButtonText: 'Aceptar'
+            });
+            return;
+        }
+        
+        // Recolectar mensajes del cliente (repaly) usando selector de hijo directo
+        var clientMessages = [];
+        $('.chatbox .msg-body > ul > li.repaly').each(function() {
+            var $li = $(this);
+            var $messageContent = $li.find('.message-content');
+            var html = $messageContent.html();
+            
+            if (html && html.trim()) {
+                clientMessages.push({
+                    type: 'repaly',
+                    html: html.trim()
+                });
+            }
+        });
+        
+        // Validar que haya al menos un mensaje del cliente
+        if (clientMessages.length === 0) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Sin mensajes',
+                text: 'No hay mensajes enviados en esta conversación para guardar como proyecto.',
+                confirmButtonText: 'Aceptar'
+            });
+            return;
+        }
+        
+        // Recolectar TODOS los mensajes (cliente y POS) para el proyecto usando selector de hijo directo
+        var allMessages = [];
+        $('.chatbox .msg-body > ul > li').each(function() {
+            var $li = $(this);
+            
+            // Ignorar divisores y mensajes de error
+            if ($li.find('.divider').length > 0 || $li.hasClass('message-error')) {
+                return;
+            }
+            
+            var type = $li.hasClass('sender') ? 'sender' : 'repaly';
+            var $messageContent = $li.find('.message-content');
+            var html = $messageContent.html();
+            var $timeSpan = $li.find('.time');
+            var timestamp = $timeSpan.attr('data-timestamp') || new Date().toISOString();
+            
+            if (html && html.trim()) {
+                allMessages.push({
+                    type: type,
+                    html: html.trim(),
+                    timestamp: timestamp
+                });
+            }
+        });
+        
+        // Mostrar diálogo para nombre del proyecto
+        Swal.fire({
+            title: 'Guardar como proyecto',
+            html: '<input id="swal-project-name" class="swal2-input" placeholder="Nombre del proyecto" style="width: 85%;">',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: '<i class="fa fa-floppy-o"></i> Guardar',
+            cancelButtonText: 'Cancelar',
+            customClass: {
+                confirmButton: 'btn btn-success',
+                cancelButton: 'btn btn-secondary'
+            },
+            preConfirm: function() {
+                var projectName = document.getElementById('swal-project-name').value.trim();
+                
+                if (!projectName) {
+                    Swal.showValidationMessage('Debes escribir un nombre para el proyecto');
+                    return false;
+                }
+                
+                return projectName;
+            },
+            didOpen: function() {
+                // Focus en el input
+                document.getElementById('swal-project-name').focus();
+            }
+        }).then(function(result) {
+            if (result.isConfirmed && result.value) {
+                var projectName = result.value;
+                
+                // Mostrar loading
+                Swal.fire({
+                    title: 'Guardando proyecto...',
+                    html: 'Por favor espera',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    showConfirmButton: false,
+                    didOpen: function() {
+                        Swal.showLoading();
+                    }
+                });
+                
+                // Enviar al webhook
+                saveAsProject(projectName, posId, allMessages)
+                    .then(function(data) {
+                        console.log('Proyecto guardado exitosamente:', data);
+                        
+                        Swal.fire({
+                            icon: 'success',
+                            title: '¡Proyecto guardado!',
+                            html: '<strong>Proyecto:</strong> ' + data.ProyectoNombre + '<br>' +
+                                  '<strong>ID:</strong> ' + data.ProyectoID,
+                            confirmButtonText: 'Aceptar'
+                        });
+                    })
+                    .catch(function(error) {
+                        console.error('Error al guardar proyecto:', error);
+                        
+                        var errorMessage = 'No se pudo guardar el proyecto';
+                        if (error.message) {
+                            errorMessage = error.message;
+                        }
+                        
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error al guardar',
+                            text: errorMessage,
+                            confirmButtonText: 'Aceptar'
+                        });
+                    });
+            }
+        });
+    });
+
+    // =========================
     // BOTÓN VOLVER (flecha)
     // =========================
     $('.chatbox').on('click', '.chat-icon img', function () {
+        // Limpiar conversationId al salir del chat
+        currentConversationId = '';
+        console.log('Saliendo del chat - conversationId limpiado');
+        
         $('.chatbox .msg-head, .chatbox .modal-body, .chatbox .send-box').remove();
         $('.chatbox').removeClass('has-conversation');
 
