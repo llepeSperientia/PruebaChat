@@ -922,7 +922,7 @@ var $send = $(
                 
                 // Limpiar input y resetear archivos
                 $('.send-input').val('');
-                var filesToSend = selectedFiles;
+                var filesToSend = selectedFiles.slice(0); // Copiar archivos seleccionados
                 selectedFiles = null;
                 $('#upload').val('');
                 $('.btn-attach').css('color', '').attr('title', 'Adjuntar archivo');
