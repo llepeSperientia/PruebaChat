@@ -399,57 +399,50 @@ $(function () {
     }
 
 
-    // =========================
-    // RENDER HEADER
-    // =========================
-    function renderHeader(name, description, imageSrc) {
-        var $head = $(
-            '<div class="msg-head">' +
-                '<div class="row">' +
-                    '<div class="col-8">' +
-                        '<div class="d-flex align-items-center">' +
-                            '<span class="chat-icon">' +
-                                '<img class="img-fluid" src="https://mehedihtml.com/chatbox/assets/img/arroleftt.svg" alt="volver" role="button">' +
-                            '</span>' +
-                            '<div class="flex-shrink-0">' +
-                                '<img class="img-fluid pos-avatar" src="" alt="user img" style="width: 45px; height: 45px; object-fit: cover; border-radius: 50%;">' +
-                            '</div>' +
-                            '<div class="flex-grow-1 ms-3">' +
-                                '<h3></h3>' +
-                                '<p></p>' +
-                            '</div>' +
+// =========================
+// RENDER HEADER
+// =========================
+function renderHeader(name, description, imageSrc) {
+    var $head = $(
+        '<div class="msg-head">' +
+            '<div class="row">' +
+                '<div class="col-8">' +
+                    '<div class="d-flex align-items-center">' +
+                        '<span class="chat-icon">' +
+                            '<img class="img-fluid" src="https://mehedihtml.com/chatbox/assets/img/arroleftt.svg" alt="volver" role="button">' +
+                        '</span>' +
+                        '<div class="flex-shrink-0">' +
+                            '<img class="img-fluid pos-avatar" src="" alt="user img" style="width: 45px; height: 45px; object-fit: cover; border-radius: 50%;">' +
+                        '</div>' +
+                        '<div class="flex-grow-1 ms-3">' +
+                            '<h3></h3>' +
+                            '<p></p>' +
                         '</div>' +
                     '</div>' +
-                    '<div class="col-4">' +
-                        '<ul class="moreoption">' +
-                            '<li class="navbar nav-item dropdown">' +
-                                '<a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">' +
-                                    '<i class="fa fa-ellipsis-v" aria-hidden="true"></i>' +
-                                '</a>' +
-                                '<ul class="dropdown-menu">' +
-                                    '<li><a class="dropdown-item save-as-project" href="#"><i class="fa fa-floppy-o" aria-hidden="true"></i> Guardar como proyecto...</a></li>' +
-                                    '<li><hr class="dropdown-divider"></li>' +
-                                    '<li><a class="dropdown-item" href="#">Action</a></li>' +
-                                    '<li><a class="dropdown-item" href="#">Another action</a></li>' +
-                                    '<li><a class="dropdown-item" href="#">Something else here</a></li>' +
-                                '</ul>' +
-                            '</li>' +
-                        '</ul>' +
+                '</div>' +
+                '<div class="col-4">' +
+                    // 🔹 NUEVO: contenedor con botón + menú
+                    '<div class="d-flex justify-content-end align-items-center gap-2">' +
+                        // 🔹 NUEVO: botón visible "Guardar conversación"
+                        '<button type="button" class="btn-save-conversation">' +
+                            '<i class="fa fa-floppy-o" aria-hidden="true"></i> Guardar conversación' +
+                        '</button>' +
                     '</div>' +
                 '</div>' +
-            '</div>'
-        );
+            '</div>' +
+        '</div>'
+    );
 
-        $head.find('h3').text(name);
-        $head.find('p').text(description);
-        
-        // Establecer imagen del POS o usar por defecto
-        var avatarSrc = imageSrc || 'https://mehedihtml.com/chatbox/assets/img/user.png';
-        $head.find('.pos-avatar').attr('src', avatarSrc);
+    $head.find('h3').text(name);
+    $head.find('p').text(description);
+    
+    // Establecer imagen del POS o usar por defecto
+    var avatarSrc = imageSrc || 'https://mehedihtml.com/chatbox/assets/img/user.png';
+    $head.find('.pos-avatar').attr('src', avatarSrc);
 
-        $('.chatbox .msg-head').remove();
-        $('.chatbox .modal-content').prepend($head);
-    }
+    $('.chatbox .msg-head').remove();
+    $('.chatbox .modal-content').prepend($head);
+}
 
 
     // =========================
@@ -681,6 +674,15 @@ $(function () {
     }
 
     // =========================
+// BOTÓN "GUARDAR CONVERSACIÓN" VISIBLE
+// =========================
+$('.chatbox').on('click', '.btn-save-conversation', function (e) {
+    e.preventDefault();
+    // Reutilizamos exactamente el mismo flujo del menú
+    $('.chatbox .save-as-project').trigger('click');
+});
+
+    // =========================
     // LLAMAR WEBHOOK DE MAKE
     // =========================
     /**
@@ -803,24 +805,42 @@ $(function () {
         var disabledAttr = readOnly ? 'disabled' : '';
         var disabledClass = readOnly ? ' read-only' : '';
 
-        var $send = $(
-            '<div class="send-box' + disabledClass + '">' +
-                '<input type="hidden" class="current-pos-id" value="' + (posId || '') + '">' +
-                '<form action="#" onsubmit="return false;" class="send-form">' +
-                    '<div class="input-group">' +
-                        '<label for="upload" class="btn btn-attach" ' + disabledAttr + ' ' +
-                            (readOnly ? 'title="Chat archivado: no se pueden adjuntar archivos"' : 'title="Adjuntar archivo"') + '>' +
-                            '<i class="fa fa-paperclip" aria-hidden="true"></i>' +
-                        '</label>' +
-                        '<input type="file" name="upload" id="upload" class="upload-box" aria-label="Subir archivo" ' + disabledAttr + ' style="display: none;" multiple>' +
-                        '<input type="text" class="form-control send-input" aria-label="message…" placeholder="Escribe un mensaje…" ' + disabledAttr + '>' +
-                        '<button type="button" class="btn-send" ' + disabledAttr + '>' +
-                            '<i class="fa fa-paper-plane" aria-hidden="true"></i>' +
-                        '</button>' +
-                    '</div>' +
-                '</form>' +
-            '</div>'
-        );
+var $send = $(
+    '<div class="send-box' + disabledClass + '">' +
+        '<input type="hidden" class="current-pos-id" value="' + (posId || '') + '">' +
+        '<form action="#" onsubmit="return false;" class="send-form">' +
+            // NUEVO layout
+            '<div class="send-row d-flex align-items-center">' +
+
+                // Botón + redondo
+'<button type="button" class="btn-attach" ' + disabledAttr + ' ' +
+    (readOnly
+        ? 'title="Chat archivado: no se pueden adjuntar archivos"'
+        : 'title="Adjuntar archivo"') + '>' +
+    '<i class="fa fa-paperclip" aria-hidden="true"></i>' +
+'</button>' +
+
+
+                // Input file oculto (se sigue usando en el JS)
+                '<input type="file" name="upload" id="upload" class="upload-box" aria-label="Subir archivo" ' +
+                    disabledAttr + ' style="display: none;" multiple>' +
+
+                // Caja de texto larga y redondeada
+                '<div class="input-wrapper flex-grow-1">' +
+                    '<input type="text" class="form-control send-input" aria-label="message…" ' +
+                        'placeholder="Pregúntame lo que quieras…" ' + disabledAttr + '>' +
+                '</div>' +
+
+                // Botón ENVIAR fuera
+                '<button type="button" class="btn-send" ' + disabledAttr + '>' +
+                    '<i class="fa fa-paper-plane" aria-hidden="true"></i> Enviar' +
+                '</button>' +
+
+            '</div>' +
+        '</form>' +
+    '</div>'
+);
+
 
         $('.chatbox .send-box').remove();
         $('.chatbox .modal-content').append($send);
@@ -1040,6 +1060,7 @@ $(function () {
 
         if (isMobile()) {
             $('.chatbox').addClass('showbox'); // aquí se desliza el chat en móvil
+            $('.chatlist').addClass('hide-on-mobile');
         }
 
         showLoading().then(function () {
@@ -1208,6 +1229,7 @@ $(function () {
 
         if (isMobile()) {
             $('.chatbox').removeClass('showbox');
+            $('.chatlist').removeClass('hide-on-mobile');
             $('.chat-area').scrollTop(0);
         }
     });
