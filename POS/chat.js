@@ -942,7 +942,7 @@ $(function () {
         // Mostrar diálogo para nombre del proyecto
         Swal.fire({
             title: 'Guardar como proyecto',
-            html: '<input id="swal-project-name" class="swal2-input" placeholder="Nombre del proyecto" style="width: 85%;">',
+            html: '<input id="swal-project-name" class="swal2-input" placeholder="Nombre del proyecto" style="width: 85%; margin: 0;">',
             icon: 'question',
             showCancelButton: true,
             confirmButtonText: '<i class="fa fa-floppy-o"></i> Guardar',
