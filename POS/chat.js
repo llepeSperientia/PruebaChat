@@ -10,6 +10,7 @@ $(function () {
     var POS_WEBHOOK_URL = 'https://hook.us1.make.com/udoxfuc53ng3axncfwssqpvc3kbmdr09';
     var PROJECT_WEBHOOK_URL = 'https://hook.us1.make.com/0em229nad8e86arsx3wzede7fq3mpc14';
     var AUTH_WEBHOOK_URL = 'https://hook.us1.make.com/8suqn5153tn4ccxc65ndsigupfhnxj1d';
+    var FETCH_PROJECTS_WEBHOOK_URL = 'https://hook.us1.make.com/a4cja92udhhcp7qni2qn1364qbvxl48v';
 
     // URL de contacto para usuarios sin acceso al servicio
     var CONTACT_URL = '/contactanos'; // CAMBIAR A LA URL DE CONTACTO
@@ -36,6 +37,9 @@ $(function () {
     var CACHE_KEY_TIMESTAMP = 'pos_cache_timestamp';
     var CACHE_KEY_TOKEN_EMPRESA = 'token_empresa';
     var CACHE_KEY_USER_EMAIL = 'user_email';
+    var CACHE_KEY_PROJECTS = 'projects_cache_data';
+    var CACHE_KEY_PROJECTS_TIMESTAMP = 'projects_last_fetch';
+    var CACHE_KEY_PROJECTS_POS = 'projects_pos_cache';
     var CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutos
 
     // Variable global para conversationId (se pierde al refrescar)
@@ -542,6 +546,288 @@ $(function () {
         return hh12 + ':' + mm + ' ' + suffix;
     }
 
+    /**
+     * Formatea una fecha ISO a formato legible
+     * @param {string} isoDate - Fecha en formato ISO
+     * @returns {string} - Fecha formateada
+     */
+    function formatDate(isoDate) {
+        var date = new Date(isoDate);
+        var day = String(date.getDate()).padStart(2, '0');
+        var month = String(date.getMonth() + 1).padStart(2, '0');
+        var year = date.getFullYear();
+        return day + '/' + month + '/' + year;
+    }
+
+
+    // =========================
+    // GESTIÓN DE PROYECTOS GUARDADOS
+    // =========================
+    
+    /**
+     * Obtiene la imagen de un POS desde el caché de POS de proyectos
+     * @param {string} posId - ID del POS
+     * @returns {string} - URL de la imagen o imagen por defecto
+     */
+    function getProjectPOSImage(posId) {
+        try {
+            var cachedPOS = localStorage.getItem(CACHE_KEY_PROJECTS_POS);
+            if (!cachedPOS) return 'https://mehedihtml.com/chatbox/assets/img/user.png';
+            
+            var posList = JSON.parse(cachedPOS);
+            var pos = posList.find(function(p) { return p.Id === posId; });
+            
+            return pos && pos.Imagen ? pos.Imagen : 'https://mehedihtml.com/chatbox/assets/img/user.png';
+        } catch (e) {
+            console.error('Error al obtener imagen de POS de proyecto:', e);
+            return 'https://mehedihtml.com/chatbox/assets/img/user.png';
+        }
+    }
+    
+    /**
+     * Guarda o actualiza POS en el caché de POS de proyectos
+     * @param {string} posId - ID del POS
+     * @param {string} posImage - URL de la imagen del POS
+     */
+    function saveProjectPOS(posId, posImage) {
+        try {
+            var cachedPOS = localStorage.getItem(CACHE_KEY_PROJECTS_POS);
+            var posList = cachedPOS ? JSON.parse(cachedPOS) : [];
+            
+            // Verificar si ya existe
+            var existingIndex = posList.findIndex(function(p) { return p.Id === posId; });
+            
+            if (existingIndex === -1) {
+                // No existe, agregar
+                posList.push({ Id: posId, Imagen: posImage });
+                localStorage.setItem(CACHE_KEY_PROJECTS_POS, JSON.stringify(posList));
+                console.log('POS de proyecto agregado al caché:', posId);
+            } else {
+                // Ya existe, actualizar imagen si es diferente
+                if (posList[existingIndex].Imagen !== posImage) {
+                    posList[existingIndex].Imagen = posImage;
+                    localStorage.setItem(CACHE_KEY_PROJECTS_POS, JSON.stringify(posList));
+                    console.log('POS de proyecto actualizado en caché:', posId);
+                }
+            }
+        } catch (e) {
+            console.error('Error al guardar POS de proyecto:', e);
+        }
+    }
+    
+    /**
+     * Obtiene proyectos del caché
+     * @returns {Array} - Array de proyectos
+     */
+    function getProjectsFromCache() {
+        try {
+            var cachedProjects = localStorage.getItem(CACHE_KEY_PROJECTS);
+            if (!cachedProjects) return [];
+            
+            return JSON.parse(cachedProjects);
+        } catch (e) {
+            console.error('Error al leer proyectos del caché:', e);
+            return [];
+        }
+    }
+    
+    /**
+     * Guarda proyectos en el caché
+     * @param {Array} projects - Array de proyectos
+     */
+    function saveProjectsToCache(projects) {
+        try {
+            localStorage.setItem(CACHE_KEY_PROJECTS, JSON.stringify(projects));
+            console.log('Proyectos guardados en caché:', projects.length);
+        } catch (e) {
+            console.error('Error al guardar proyectos en caché:', e);
+        }
+    }
+    
+    /**
+     * Obtiene proyectos desde el webhook
+     * @returns {Promise<Array>} - Array de proyectos
+     */
+    function fetchProjectsFromMake() {
+        return new Promise(function(resolve, reject) {
+            getTokenEmpresa()
+                .then(function(tokenEmpresa) {
+                    // Obtener fecha de última consulta del caché
+                    var lastFetch = localStorage.getItem(CACHE_KEY_PROJECTS_TIMESTAMP);
+                    
+                    // Construir payload
+                    var payload = {
+                        IdEmpresa: tokenEmpresa
+                    };
+                    
+                    // Si hay fecha de última consulta, agregarla
+                    if (lastFetch) {
+                        payload.FechaConsulta = lastFetch;
+                        console.log('Consultando proyectos desde:', lastFetch);
+                    } else {
+                        console.log('Primera consulta de proyectos - obteniendo todos');
+                    }
+                    
+                    // Llamar al webhook
+                    return fetch(FETCH_PROJECTS_WEBHOOK_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                })
+                .then(function(response) {
+                    console.log('Status de respuesta proyectos:', response.status, response.statusText);
+                    
+                    if (!response.ok) {
+                        throw new Error('Error en la respuesta del servidor: ' + response.status);
+                    }
+                    
+                    return response.text().then(function(text) {
+                        console.log('Respuesta proyectos (raw):', text.substring(0, 200));
+                        
+                        if (!text || text.trim() === '') {
+                            throw new Error('El servidor respondió con una respuesta vacía');
+                        }
+                        
+                        try {
+                            return JSON.parse(text);
+                        } catch (parseError) {
+                            console.error('Error al parsear JSON de proyectos:', parseError);
+                            throw new Error('Formato de respuesta inválido del servidor de proyectos');
+                        }
+                    });
+                })
+                .then(function(data) {
+                    console.log('Proyectos recibidos:', data);
+                    
+                    // Verificar si hay error en la respuesta
+                    if (data && data.error) {
+                        throw new Error(data.error);
+                    }
+                    
+                    // Verificar que sea un array
+                    if (!Array.isArray(data)) {
+                        throw new Error('La respuesta no es un array válido');
+                    }
+                    
+                    // Guardar fecha de consulta actual
+                    var currentTimestamp = new Date().toISOString();
+                    localStorage.setItem(CACHE_KEY_PROJECTS_TIMESTAMP, currentTimestamp);
+                    
+                    // Obtener proyectos actuales del caché
+                    var lastFetch = localStorage.getItem(CACHE_KEY_PROJECTS_TIMESTAMP);
+                    var existingProjects = [];
+                    
+                    // Si había fecha de última consulta, obtener proyectos existentes
+                    // Si no había, limpiar todo
+                    if (lastFetch) {
+                        existingProjects = getProjectsFromCache();
+                    } else {
+                        console.log('No había fecha de consulta previa - limpiando proyectos');
+                    }
+                    
+                    // Procesar nuevos proyectos
+                    data.forEach(function(project) {
+                        // Guardar POS en caché de POS de proyectos
+                        if (project.POSId && project.POSImagen) {
+                            saveProjectPOS(project.POSId, project.POSImagen);
+                        }
+                        
+                        // Verificar si el proyecto ya existe
+                        var existingIndex = existingProjects.findIndex(function(p) {
+                            return p.ProyectoID === project.ProyectoID;
+                        });
+                        
+                        // Crear objeto de proyecto simplificado (sin imagen)
+                        var simplifiedProject = {
+                            ProyectoID: project.ProyectoID,
+                            ProyectoNombre: project.ProyectoNombre,
+                            ProyectoFechaCreacion: project.ProyectoFechaCreacion,
+                            POSId: project.POSId,
+                            POSNombre: project.POSNombre
+                        };
+                        
+                        if (existingIndex === -1) {
+                            // No existe, agregar
+                            existingProjects.push(simplifiedProject);
+                        } else {
+                            // Ya existe, actualizar
+                            existingProjects[existingIndex] = simplifiedProject;
+                        }
+                    });
+                    
+                    // Guardar proyectos actualizados
+                    saveProjectsToCache(existingProjects);
+                    
+                    console.log('Total de proyectos en caché:', existingProjects.length);
+                    resolve(existingProjects);
+                })
+                .catch(function(error) {
+                    console.error('Error al obtener proyectos:', error);
+                    
+                    // En caso de error, intentar usar caché
+                    var cachedProjects = getProjectsFromCache();
+                    if (cachedProjects.length > 0) {
+                        console.log('Usando proyectos del caché como fallback');
+                        resolve(cachedProjects);
+                    } else {
+                        reject(error);
+                    }
+                });
+        });
+    }
+    
+    /**
+     * Renderiza proyectos en el tab de Guardados
+     * @param {Array} projects - Array de proyectos
+     */
+    function renderProjects(projects) {
+        var $projectsList = $('#Guardado .chat-list');
+        $projectsList.empty();
+        
+        if (!projects || projects.length === 0) {
+            $projectsList.html(
+                '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; min-height: 300px; text-align: center;">' +
+                    '<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-bottom: 20px; opacity: 0.3;">' +
+                        '<path d="M50 20v60M20 50h60" stroke="#D1D6E0" stroke-width="4" stroke-linecap="round"/>' +
+                        '<circle cx="50" cy="50" r="35" stroke="#E6E9EE" stroke-width="3" fill="none"/>' +
+                    '</svg>' +
+                    '<h4 style="color: #6c757d; margin: 0 0 10px 0; font-size: 16px; font-weight: 600;">No hay proyectos guardados</h4>' +
+                    '<p style="color: #adb5bd; margin: 0; font-size: 14px;">Guarda conversaciones como proyectos para verlos aquí</p>' +
+                '</div>'
+            );
+            return;
+        }
+        
+        // Renderizar cada proyecto
+        projects.forEach(function(project) {
+            var projectImage = getProjectPOSImage(project.POSId);
+            var formattedDate = formatDate(project.ProyectoFechaCreacion);
+            
+            var $projectItem = $(
+                '<a href="#" class="d-flex align-items-center" data-project-id="' + project.ProyectoID + '" data-pos-id="' + project.POSId + '">' +
+                    '<div class="flex-shrink-0">' +
+                        '<img class="img-fluid" src="" alt="' + project.POSNombre + '">' +
+                        '<span class="active"></span>' +
+                    '</div>' +
+                    '<div class="flex-grow-1 ms-3">' +
+                        '<h3 title="' + project.ProyectoNombre + '">' + project.ProyectoNombre + '</h3>' +
+                        '<p title="Creado el ' + formattedDate + '">' + formattedDate + '</p>' +
+                    '</div>' +
+                '</a>'
+            );
+            
+            // Establecer imagen
+            $projectItem.find('img').attr('src', projectImage);
+            
+            // Agregar al contenedor
+            $projectsList.append($projectItem);
+        });
+        
+        console.log('Proyectos renderizados en el HTML:', projects.length);
+    }
 
     // =========================
     // LOADER ANIMADO
@@ -1432,58 +1718,94 @@ $(function () {
     $('.chatbox').removeClass('has-conversation');
 
     // =========================
-    // CARGAR Y RENDERIZAR POS AL INICIAR
+    // CARGAR Y RENDERIZAR POS Y PROYECTOS AL INICIAR
     // =========================
 
-    fetchPOSFromMake(false).then(function (posArray) {
-        console.log('POS cargados:', posArray.length);
-
-        // Limpiar la lista actual de POS
-        var $posList = $('#POS .chat-list');
-        $posList.empty();
-
-        // Renderizar cada POS en el DOM
-        posArray.forEach(function (pos) {
-            var $posItem = $(
-                '<a href="#" class="d-flex align-items-center" data-pos-id="' + pos.Id + '">' +
-                '<div class="flex-shrink-0">' +
-                '<img class="img-fluid" src="" alt="' + pos.Nombre + '">' +
-                '<span class="active"></span>' +
-                '</div>' +
-                '<div class="flex-grow-1 ms-3">' +
-                '<h3 title="' + pos.Nombre + '">' + pos.Nombre + '</h3>' +
-                '<p title="' + pos.Descripcion + '">' + pos.Descripcion + '</p>' +
-                '</div>' +
-                '</a>'
-            );
-
-            // Establecer la imagen (base64 o URL por defecto)
-            $posItem.find('img').attr('src', pos.Imagen);
-
-            // Agregar al contenedor
-            $posList.append($posItem);
-        });
-
-        console.log('POS renderizados en el HTML:', posArray.length);
-    }).catch(function (error) {
-        console.error('No se pudieron cargar los POS:', error);
-        // Mostrar mensaje de error en la interfaz
-        var $posList = $('#POS .chat-list');
-        $posList.html(
+    /**
+     * Muestra mensaje de error en un tab específico
+     * @param {string} selector - Selector del contenedor (ej: '#POS .chat-list')
+     * @param {string} title - Título del error
+     * @param {string} description - Descripción del error
+     */
+    function showTabError(selector, title, description) {
+        var $container = $(selector);
+        $container.html(
             '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; min-height: 300px; text-align: center;">' +
-            '<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-bottom: 20px; opacity: 0.3;">' +
-            '<circle cx="60" cy="60" r="50" stroke="#E6E9EE" stroke-width="4" fill="none"/>' +
-            '<path d="M60 35v25M60 70v5" stroke="#D1D6E0" stroke-width="6" stroke-linecap="round"/>' +
-            '<circle cx="60" cy="60" r="58" stroke="#F6F7FA" stroke-width="2" fill="none" opacity="0.5"/>' +
-            '</svg>' +
-            '<h4 style="color: #6c757d; margin: 0 0 10px 0; font-size: 18px; font-weight: 600;">No se pudieron cargar los POS</h4>' +
-            '<p style="color: #adb5bd; margin: 0 0 20px 0; font-size: 14px; line-height: 1.5; max-width: 300px;">Hubo un problema.</p>' +
-            '<button onclick="location.reload()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);" onmouseover="this.style.transform=\'translateY(-2px)\'; this.style.boxShadow=\'0 6px 16px rgba(102, 126, 234, 0.4)\'" onmouseout="this.style.transform=\'translateY(0)\'; this.style.boxShadow=\'0 4px 12px rgba(102, 126, 234, 0.3)\'">' +
-            '<i class="fa fa-refresh" style="margin-right: 8px;"></i>Recargar página' +
-            '</button>' +
+                '<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-bottom: 20px; opacity: 0.3;">' +
+                    '<circle cx="60" cy="60" r="50" stroke="#E6E9EE" stroke-width="4" fill="none"/>' +
+                    '<path d="M60 35v25M60 70v5" stroke="#D1D6E0" stroke-width="6" stroke-linecap="round"/>' +
+                    '<circle cx="60" cy="60" r="58" stroke="#F6F7FA" stroke-width="2" fill="none" opacity="0.5"/>' +
+                '</svg>' +
+                '<h4 style="color: #6c757d; margin: 0 0 10px 0; font-size: 18px; font-weight: 600;">' + title + '</h4>' +
+                '<p style="color: #adb5bd; margin: 0 0 20px 0; font-size: 14px; line-height: 1.5; max-width: 300px;">' + description + '</p>' +
+                '<button onclick="location.reload()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);" onmouseover="this.style.transform=\'translateY(-2px)\'; this.style.boxShadow=\'0 6px 16px rgba(102, 126, 234, 0.4)\'" onmouseout="this.style.transform=\'translateY(0)\'; this.style.boxShadow=\'0 4px 12px rgba(102, 126, 234, 0.3)\'">' +
+                    '<i class="fa fa-refresh" style="margin-right: 8px;"></i>Recargar página' +
+                '</button>' +
             '</div>'
         );
-    });
+    }
+
+    // Cargar POS
+    fetchPOSFromMake(false)
+        .then(function(posArray) {
+            console.log('POS cargados:', posArray.length);
+
+            // Renderizar POS
+            var $posList = $('#POS .chat-list');
+            $posList.empty();
+
+            if (!posArray || posArray.length === 0) {
+                showTabError(
+                    '#POS .chat-list',
+                    'No hay POS disponibles',
+                    'No se encontraron POS para mostrar.'
+                );
+                return;
+            }
+
+            posArray.forEach(function (pos) {
+                var $posItem = $(
+                    '<a href="#" class="d-flex align-items-center" data-pos-id="' + pos.Id + '">' +
+                        '<div class="flex-shrink-0">' +
+                            '<img class="img-fluid" src="" alt="' + pos.Nombre + '">' +
+                            '<span class="active"></span>' +
+                        '</div>' +
+                        '<div class="flex-grow-1 ms-3">' +
+                            '<h3 title="' + pos.Nombre + '">' + pos.Nombre + '</h3>' +
+                            '<p title="' + pos.Descripcion + '">' + pos.Descripcion + '</p>' +
+                        '</div>' +
+                    '</a>'
+                );
+
+                $posItem.find('img').attr('src', pos.Imagen);
+                $posList.append($posItem);
+            });
+
+            console.log('POS renderizados en el HTML:', posArray.length);
+        })
+        .catch(function (error) {
+            console.error('Error al cargar POS:', error);
+            showTabError(
+                '#POS .chat-list',
+                'No se pudieron cargar los POS',
+                'Hubo un problema al obtener la lista de POS. Por favor, intenta recargar la página.'
+            );
+        });
+
+    // Cargar Proyectos
+    fetchProjectsFromMake()
+        .then(function(projectsArray) {
+            console.log('Proyectos cargados:', projectsArray.length);
+            renderProjects(projectsArray);
+        })
+        .catch(function (error) {
+            console.error('Error al cargar proyectos:', error);
+            showTabError(
+                '#Guardado .chat-list',
+                'No se pudieron cargar los proyectos',
+                'Hubo un problema al obtener los proyectos guardados. Por favor, intenta recargar la página.'
+            );
+        });
 
     // Para forzar actualización ignorando caché:
     // fetchPOSFromMake(true).then(...);
