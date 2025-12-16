@@ -1806,7 +1806,7 @@ $(function () {
 
         var name = getPreferredText($a.find('h3'));
         var desc = getPreferredText($a.find('p'));
-        var isArchived = $a.closest('.tab-pane').is('#Archivado');
+        var isArchived = $a.closest('.tab-pane').is('#Guardado');
         var isProject = $a.attr('data-project-id') ? true : false;
         var projectId = $a.attr('data-project-id') || '';
 
