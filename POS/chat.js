@@ -587,34 +587,44 @@ $(function () {
     }
     
     /**
-     * Guarda o actualiza POS en el caché de POS de proyectos
+     * Guarda o actualiza POS en el caché de POS de proyectos (con imagen en base64)
      * @param {string} posId - ID del POS
-     * @param {string} posImage - URL de la imagen del POS
+     * @param {string} posImageUrl - URL de la imagen del POS
+     * @returns {Promise} - Promesa que se resuelve cuando se guarda
      */
-    function saveProjectPOS(posId, posImage) {
-        try {
-            var cachedPOS = localStorage.getItem(CACHE_KEY_PROJECTS_POS);
-            var posList = cachedPOS ? JSON.parse(cachedPOS) : [];
-            
-            // Verificar si ya existe
-            var existingIndex = posList.findIndex(function(p) { return p.Id === posId; });
-            
-            if (existingIndex === -1) {
-                // No existe, agregar
-                posList.push({ Id: posId, Imagen: posImage });
-                localStorage.setItem(CACHE_KEY_PROJECTS_POS, JSON.stringify(posList));
-                console.log('POS de proyecto agregado al caché:', posId);
-            } else {
-                // Ya existe, actualizar imagen si es diferente
-                if (posList[existingIndex].Imagen !== posImage) {
-                    posList[existingIndex].Imagen = posImage;
-                    localStorage.setItem(CACHE_KEY_PROJECTS_POS, JSON.stringify(posList));
-                    console.log('POS de proyecto actualizado en caché:', posId);
+    function saveProjectPOS(posId, posImageUrl) {
+        return new Promise(function(resolve, reject) {
+            try {
+                var cachedPOS = localStorage.getItem(CACHE_KEY_PROJECTS_POS);
+                var posList = cachedPOS ? JSON.parse(cachedPOS) : [];
+                
+                // Verificar si ya existe
+                var existingIndex = posList.findIndex(function(p) { return p.Id === posId; });
+                
+                if (existingIndex === -1) {
+                    // No existe, convertir imagen a base64 y agregar
+                    imageUrlToBase64(posImageUrl).then(function(base64Image) {
+                        posList.push({ Id: posId, Imagen: base64Image });
+                        localStorage.setItem(CACHE_KEY_PROJECTS_POS, JSON.stringify(posList));
+                        console.log('POS de proyecto agregado al caché:', posId);
+                        resolve();
+                    }).catch(function(error) {
+                        console.error('Error al convertir imagen de POS de proyecto:', error);
+                        // Usar imagen por defecto en caso de error
+                        posList.push({ Id: posId, Imagen: 'https://mehedihtml.com/chatbox/assets/img/user.png' });
+                        localStorage.setItem(CACHE_KEY_PROJECTS_POS, JSON.stringify(posList));
+                        resolve();
+                    });
+                } else {
+                    // Ya existe, no necesita actualización (ya está en base64)
+                    console.log('POS de proyecto ya existe en caché:', posId);
+                    resolve();
                 }
+            } catch (e) {
+                console.error('Error al guardar POS de proyecto:', e);
+                reject(e);
             }
-        } catch (e) {
-            console.error('Error al guardar POS de proyecto:', e);
-        }
+        });
     }
     
     /**
@@ -730,11 +740,13 @@ $(function () {
                         console.log('No había fecha de consulta previa - limpiando proyectos');
                     }
                     
-                    // Procesar nuevos proyectos
+                    // Procesar nuevos proyectos y sus imágenes
+                    var imagePromises = [];
+                    
                     data.forEach(function(project) {
-                        // Guardar POS en caché de POS de proyectos
+                        // Guardar POS en caché de POS de proyectos (convertir a base64)
                         if (project.POSId && project.POSImagen) {
-                            saveProjectPOS(project.POSId, project.POSImagen);
+                            imagePromises.push(saveProjectPOS(project.POSId, project.POSImagen));
                         }
                         
                         // Verificar si el proyecto ya existe
@@ -760,10 +772,16 @@ $(function () {
                         }
                     });
                     
-                    // Guardar proyectos actualizados
-                    saveProjectsToCache(existingProjects);
-                    
-                    console.log('Total de proyectos en caché:', existingProjects.length);
+                    // Esperar a que todas las imágenes se conviertan a base64
+                    return Promise.all(imagePromises).then(function() {
+                        // Guardar proyectos actualizados
+                        saveProjectsToCache(existingProjects);
+                        
+                        console.log('Total de proyectos en caché:', existingProjects.length);
+                        return existingProjects;
+                    });
+                })
+                .then(function(existingProjects) {
                     resolve(existingProjects);
                 })
                 .catch(function(error) {
