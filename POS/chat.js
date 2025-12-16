@@ -11,6 +11,7 @@ $(function () {
     var PROJECT_WEBHOOK_URL = 'https://hook.us1.make.com/0em229nad8e86arsx3wzede7fq3mpc14';
     var AUTH_WEBHOOK_URL = 'https://hook.us1.make.com/8suqn5153tn4ccxc65ndsigupfhnxj1d';
     var FETCH_PROJECTS_WEBHOOK_URL = 'https://hook.us1.make.com/a4cja92udhhcp7qni2qn1364qbvxl48v';
+    var FETCH_PROJECT_MESSAGES_WEBHOOK_URL = 'https://hook.us1.make.com/5ezn1vjf6ocglymhul2upvmsorb3dfwc';
 
     // URL de contacto para usuarios sin acceso al servicio
     var CONTACT_URL = '/contactanos'; // CAMBIAR A LA URL DE CONTACTO
@@ -40,6 +41,7 @@ $(function () {
     var CACHE_KEY_PROJECTS = 'projects_cache_data';
     var CACHE_KEY_PROJECTS_TIMESTAMP = 'projects_last_fetch';
     var CACHE_KEY_PROJECTS_POS = 'projects_pos_cache';
+    var CACHE_KEY_PROJECT_MESSAGES = 'project_messages_cache';
     var CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutos
 
     // Variable global para conversationId (se pierde al refrescar)
@@ -780,6 +782,133 @@ $(function () {
     }
     
     /**
+     * Obtiene mensajes de un proyecto del caché
+     * @param {string} projectId - ID del proyecto
+     * @returns {Array|null} - Array de mensajes o null si no existe
+     */
+    function getProjectMessagesFromCache(projectId) {
+        try {
+            var cachedMessages = localStorage.getItem(CACHE_KEY_PROJECT_MESSAGES);
+            if (!cachedMessages) return null;
+            
+            var messagesCache = JSON.parse(cachedMessages);
+            return messagesCache[projectId] || null;
+        } catch (e) {
+            console.error('Error al leer mensajes de proyecto del caché:', e);
+            return null;
+        }
+    }
+    
+    /**
+     * Guarda mensajes de un proyecto en el caché
+     * @param {string} projectId - ID del proyecto
+     * @param {Array} messages - Array de mensajes
+     */
+    function saveProjectMessagesToCache(projectId, messages) {
+        try {
+            var cachedMessages = localStorage.getItem(CACHE_KEY_PROJECT_MESSAGES);
+            var messagesCache = cachedMessages ? JSON.parse(cachedMessages) : {};
+            
+            messagesCache[projectId] = messages;
+            localStorage.setItem(CACHE_KEY_PROJECT_MESSAGES, JSON.stringify(messagesCache));
+            console.log('Mensajes de proyecto guardados en caché:', projectId, messages.length);
+        } catch (e) {
+            console.error('Error al guardar mensajes de proyecto en caché:', e);
+        }
+    }
+    
+    /**
+     * Obtiene mensajes de un proyecto desde el webhook
+     * @param {string} projectId - ID del proyecto
+     * @returns {Promise<Array>} - Array de mensajes
+     */
+    function fetchProjectMessages(projectId) {
+        return new Promise(function(resolve, reject) {
+            getTokenEmpresa()
+                .then(function(tokenEmpresa) {
+                    // Verificar caché primero
+                    var cachedMessages = getProjectMessagesFromCache(projectId);
+                    if (cachedMessages) {
+                        console.log('Usando mensajes del proyecto desde caché');
+                        resolve(cachedMessages);
+                        return Promise.reject({ skipChain: true });
+                    }
+                    
+                    console.log('Consultando webhook para obtener mensajes del proyecto:', projectId);
+                    
+                    // Construir payload
+                    var payload = {
+                        IdEmpresa: tokenEmpresa,
+                        IdProyecto: projectId
+                    };
+                    
+                    // Llamar al webhook
+                    return fetch(FETCH_PROJECT_MESSAGES_WEBHOOK_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                })
+                .then(function(response) {
+                    if (!response) {
+                        throw new Error('No se recibió respuesta del servidor');
+                    }
+                    
+                    console.log('Status de respuesta mensajes de proyecto:', response.status, response.statusText);
+                    
+                    if (!response.ok) {
+                        throw new Error('Error en la respuesta del servidor: ' + response.status);
+                    }
+                    
+                    return response.text().then(function(text) {
+                        console.log('Respuesta mensajes de proyecto (raw):', text.substring(0, 200));
+                        
+                        if (!text || text.trim() === '') {
+                            throw new Error('El servidor respondió con una respuesta vacía');
+                        }
+                        
+                        try {
+                            return JSON.parse(text);
+                        } catch (parseError) {
+                            console.error('Error al parsear JSON de mensajes de proyecto:', parseError);
+                            throw new Error('Formato de respuesta inválido del servidor');
+                        }
+                    });
+                })
+                .then(function(data) {
+                    console.log('Mensajes de proyecto recibidos:', data);
+                    
+                    // Verificar si hay error en la respuesta
+                    if (data && data.error) {
+                        throw new Error(data.error);
+                    }
+                    
+                    // Verificar que sea un array
+                    if (!Array.isArray(data)) {
+                        throw new Error('La respuesta no es un array válido');
+                    }
+                    
+                    // Guardar en caché
+                    saveProjectMessagesToCache(projectId, data);
+                    
+                    resolve(data);
+                })
+                .catch(function(error) {
+                    console.error('Error al obtener mensajes de proyecto:', error);
+                    
+                    // Si es la señal especial de salida, no hacer nada
+                    if (error && error.skipChain) {
+                        return;
+                    }
+                    
+                    reject(error);
+                });
+        });
+    }
+    
+    /**
      * Renderiza proyectos en el tab de Guardados
      * @param {Array} projects - Array de proyectos
      */
@@ -887,7 +1016,14 @@ $(function () {
     // =========================
     // RENDER HEADER
     // =========================
-    function renderHeader(name, description, imageSrc) {
+    function renderHeader(name, description, imageSrc, hideButtons) {
+        if (typeof hideButtons === 'undefined') hideButtons = false;
+        
+        var saveButtonHtml = hideButtons ? '' : 
+            '<button type="button" class="btn-save-conversation">' +
+            '<i class="fa fa-floppy-o" aria-hidden="true"></i> Guardar conversación' +
+            '</button>';
+        
         var $head = $(
             '<div class="msg-head">' +
             '<div class="row">' +
@@ -906,12 +1042,8 @@ $(function () {
             '</div>' +
             '</div>' +
             '<div class="col-4">' +
-            // 🔹 NUEVO: contenedor con botón + menú
             '<div class="d-flex justify-content-end align-items-center gap-2">' +
-            // 🔹 NUEVO: botón visible "Guardar conversación"
-            '<button type="button" class="btn-save-conversation">' +
-            '<i class="fa fa-floppy-o" aria-hidden="true"></i> Guardar conversación' +
-            '</button>' +
+            saveButtonHtml +
             '</div>' +
             '</div>' +
             '</div>' +
@@ -954,9 +1086,9 @@ $(function () {
             }
 
             var liClass = msg.type === 'sender' ? 'sender' : 'repaly';
-            var $li = $('<li class="' + liClass + '"><p></p><span class="time"></span></li>');
-            $li.find('p').text(msg.text || '');
-            $li.find('.time').text(msg.time || '');
+            var $li = $('<li class="' + liClass + '"><div class="message-content"></div><span class="time" data-timestamp=""></span></li>');
+            $li.find('.message-content').html(msg.text || '');
+            $li.find('.time').text(msg.time || '').attr('data-timestamp', msg.timestamp || new Date().toISOString());
             $ul.append($li);
         });
 
@@ -1657,6 +1789,8 @@ $(function () {
         var name = getPreferredText($a.find('h3'));
         var desc = getPreferredText($a.find('p'));
         var isArchived = $a.closest('.tab-pane').is('#Archivado');
+        var isProject = $a.attr('data-project-id') ? true : false;
+        var projectId = $a.attr('data-project-id') || '';
 
         // Limpiar conversationId al abrir nueva conversación
         currentConversationId = '';
@@ -1676,12 +1810,59 @@ $(function () {
             $('.chatlist').addClass('hide-on-mobile');
         }
 
-        showLoading().then(function () {
-            renderHeader(name || 'Sin nombre', desc || '', posImage);
-            renderMessages();
-            renderSendBox(isArchived, posId);
-            $('.chatbox .msg-body').focus();
-        });
+        // Si es un proyecto guardado, cargar mensajes
+        if (isProject && projectId) {
+            showLoading().then(function () {
+                // Renderizar header sin botón de guardar
+                renderHeader(name || 'Sin nombre', desc || '', posImage, true);
+                
+                // Obtener mensajes del proyecto
+                fetchProjectMessages(projectId)
+                    .then(function(messagesData) {
+                        console.log('Mensajes del proyecto obtenidos:', messagesData.length);
+                        
+                        // Convertir mensajes al formato esperado
+                        var formattedMessages = messagesData.map(function(msg) {
+                            return {
+                                type: msg.POSProyectoMensajeEsCliente ? 'repaly' : 'sender',
+                                text: msg.POSProyectoMensajeContenido,
+                                time: formatTime(new Date(msg.POSProyectoMensajeFechaCreacion)),
+                                timestamp: msg.POSProyectoMensajeFechaCreacion
+                            };
+                        });
+                        
+                        // Renderizar mensajes
+                        renderMessages(formattedMessages);
+                        
+                        // Renderizar send box en modo solo lectura
+                        renderSendBox(true, posId);
+                        
+                        $('.chatbox .msg-body').focus();
+                    })
+                    .catch(function(error) {
+                        console.error('Error al cargar mensajes del proyecto:', error);
+                        
+                        // Mostrar mensaje de error en el chat
+                        renderMessages();
+                        renderSendBox(true, posId);
+                        
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error al cargar mensajes',
+                            text: 'No se pudieron cargar los mensajes del proyecto. Por favor, intenta nuevamente.',
+                            confirmButtonText: 'Aceptar'
+                        });
+                    });
+            });
+        } else {
+            // Conversación normal (POS o archivada)
+            showLoading().then(function () {
+                renderHeader(name || 'Sin nombre', desc || '', posImage);
+                renderMessages();
+                renderSendBox(isArchived, posId);
+                $('.chatbox .msg-body').focus();
+            });
+        }
     });
 
     // =========================
