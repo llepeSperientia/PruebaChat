@@ -1,7 +1,7 @@
 $(function () {
 
     // =========================
-    // CONFIGURACIÓN
+    // CONFIGURACIÓN ilse 2
     // =========================
     // Cambiar a true para producción, false para desarrollo
     var IS_PRODUCTION = false; // CAMBIAR A true EN PRODUCCIÓN
