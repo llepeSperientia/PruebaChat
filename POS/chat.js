@@ -1344,7 +1344,7 @@ $(function () {
             Swal.fire({
                 icon: 'warning',
                 title: 'Sin mensajes',
-                text: 'No hay mensajes enviados en esta conversación para guardar como proyecto.',
+                text: 'No hay mensajes enviados en esta conversación para guardarla.',
                 confirmButtonText: 'Aceptar'
             });
             return;
@@ -1375,14 +1375,14 @@ $(function () {
             }
         });
 
-        // Mostrar diálogo para nombre del proyecto
+        // Mostrar diálogo para nombre de la conversación
         Swal.fire({
-            title: 'Guardar como proyecto',
-            html: '<input id="swal-project-name" class="swal2-input" placeholder="Nombre del proyecto" style="width: 85%; margin: 0;">',
+            title: 'Guardar conversación como',
+            html: '<input id="swal-project-name" class="swal2-input" placeholder="Nombre de la conversación" maxlength="20" style="width: 85%; margin: 0;">',
             icon: 'question',
             showCancelButton: true,
-            confirmButtonText: '<i class="fa fa-floppy-o"></i> Guardar',
-            cancelButtonText: 'Cancelar',
+            confirmButtonText: 'Guardar',
+            cancelButtonText: 'En otro momento',
             customClass: {
                 confirmButton: 'btn btn-success',
                 cancelButton: 'btn btn-secondary'
@@ -1391,7 +1391,12 @@ $(function () {
                 var projectName = document.getElementById('swal-project-name').value.trim();
 
                 if (!projectName) {
-                    Swal.showValidationMessage('Debes escribir un nombre para el proyecto');
+                    Swal.showValidationMessage('Necesitas escribir un nombre para guardar la conversación.');
+                    return false;
+                }
+
+                if (projectName.length > 20) {
+                    Swal.showValidationMessage('El nombre no puede tener más de 20 caracteres');
                     return false;
                 }
 
@@ -1407,7 +1412,7 @@ $(function () {
 
                 // Mostrar loading
                 Swal.fire({
-                    title: 'Guardando proyecto...',
+                    title: 'Guardando conversación...',
                     html: 'Por favor espera',
                     allowOutsideClick: false,
                     allowEscapeKey: false,
@@ -1424,16 +1429,18 @@ $(function () {
 
                         Swal.fire({
                             icon: 'success',
-                            title: '¡Proyecto guardado!',
-                            html: '<strong>Proyecto:</strong> ' + data.ProyectoNombre + '<br>' +
-                                '<strong>ID:</strong> ' + data.ProyectoID,
-                            confirmButtonText: 'Aceptar'
+                            title: 'Conversación guardada',
+                            html: 'La conversación se guardó correctamente.',
+                            confirmButtonText: 'Entendido'
+                        }).then(function() {
+                            // Recargar la página al cerrar el popup
+                            location.reload();
                         });
                     })
                     .catch(function (error) {
-                        console.error('Error al guardar proyecto:', error);
+                        console.error('Error al guardar conversación:', error);
 
-                        var errorMessage = 'No se pudo guardar el proyecto';
+                        var errorMessage = 'No se pudo guardar la conversación. Por favor, intenta de nuevo más tarde.';
                         if (error.message) {
                             errorMessage = error.message;
                         }
@@ -1677,9 +1684,9 @@ $(function () {
 
                 // 1) Mostrar mensaje del usuario inmediatamente
                 var timeUser = formatTime();
-                var displayText = text || '📎 Archivo(s) adjunto(s)';
+                var displayText = text || '<i class="fa fa-paperclip" aria-hidden="true"></i> Archivo(s) adjunto(s)';
                 if (text && selectedFiles && selectedFiles.length > 0) {
-                    displayText = text + ' <span style="color: #6c757d; font-size: 12px;">📎 ' + selectedFiles.length + ' archivo(s)</span>';
+                    displayText = text + ' <span style="color: #6c757d; font-size: 12px;"><i class="fa fa-paperclip" aria-hidden="true"></i> ' + selectedFiles.length + ' archivo(s)</span>';
                 }
                 appendMessage('repaly', displayText, timeUser);
 
